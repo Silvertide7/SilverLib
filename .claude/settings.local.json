@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(javap -p -classpath /Users/nate/Workspace/minecraft/personal/realms_of_reverie/build/moddev/artifacts/neoforge-21.1.249-merged.jar net.minecraft.core.UUIDUtil)"
+    ]
+  }
+}
