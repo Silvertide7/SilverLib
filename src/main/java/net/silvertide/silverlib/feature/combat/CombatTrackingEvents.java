@@ -30,8 +30,15 @@ public final class CombatTrackingEvents {
         float dealt = Math.min(event.getNewDamage(), absorbableHealth);
         if (!Float.isFinite(dealt) || dealt <= 0.0f) return;
 
+        endStaleEngagementIfWhole(victim);
         CombatTracking.recordDamage(
                 victim, event.getSource().getEntity(), dealt, defensiveReduction(event.getContainer()));
+    }
+
+    private static void endStaleEngagementIfWhole(LivingEntity victim) {
+        if (victim.getHealth() < victim.getMaxHealth() || victim.getAbsorptionAmount() > 0.0f) return;
+
+        victim.getExistingData(CombatAttachments.COMBAT_LOG.get()).ifPresent(CombatLog::clear);
     }
 
     private static float defensiveReduction(DamageContainer container) {
@@ -45,7 +52,7 @@ public final class CombatTrackingEvents {
     public static void endEngagementWhenHealedToFull(LivingHealEvent event) {
         LivingEntity healed = event.getEntity();
         if (!(healed.level() instanceof ServerLevel) || healed.getHealth() <= 0.0f) return;
-        if (!Float.isFinite(event.getAmount())) return;
+        if (Float.isNaN(event.getAmount())) return;
         if (healed.getHealth() + event.getAmount() < healed.getMaxHealth()) return;
 
         healed.getExistingData(CombatAttachments.COMBAT_LOG.get()).ifPresent(CombatLog::clear);

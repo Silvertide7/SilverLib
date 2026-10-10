@@ -23,9 +23,13 @@ For every player it also records who healed or buffed them, so support players c
 
 Once a mob is healed back to full health the ledger is cleared. A fight that never stuck does not carry over into the next one.
 
+### Broken instead of destroyed
+
+Mods using SilverLib can ask for an item to be kept broken when its durability runs out instead of vanishing. A broken item sits at zero durability: it can't attack, mine, be used, or grant attributes until it's repaired. SilverLib only does this when another mod asks; on its own no item behaves differently.
+
 ### For mod developers
 
-The public entry point is the `CombatTracking` class. Reads are always safe: an entity nothing ever touched returns an empty log, never null.
+The public entry points are `CombatTracking`, and `BrokenItems` plus `ItemBreakingEvent` / `ItemKeptBrokenEvent` for breakage. Reads are always safe: an entity nothing ever touched returns an empty log, never null.
 
 SilverLib never hard-depends on other mods. Where it cannot observe something itself (custom healing, spell summons, damage that bypasses vanilla `hurt()`), it exposes recording methods so your mod can feed the ledger directly.
 

@@ -40,18 +40,47 @@ Three serialized data attachments:
   reductions. **Not** `INVULNERABILITY` or shield-blocked, which are subtracted before `Pre` and
   would otherwise record an i-frame hit as "armour ate your damage".
 
-**An engagement ends when the entity is whole again.** A heal that brings it to `maxHealth`
-clears the log. That is a statement about state, not the clock: if it is back to full, nothing from
+**An engagement ends when the entity is whole again.** Two triggers, because health can reach
+`maxHealth` without `heal()` ever running (a max-health attribute shrink clamps via `setHealth`; the
+ender dragon's crystals call `setHealth` directly): a `LivingHealEvent` that would reach full clears
+the log eagerly, and a hit landing on an entity already at full HP with no absorption clears any log
+it still carries before recording — if it is whole and carrying damage, that damage is stale by
+definition. The absorption guard keeps hits that only chew a shield at full HP accumulating as real
+damage. That is a statement about state, not the clock: if it is back to full, nothing from
 the previous fight stuck and there is nothing to apportion; if it is not, whatever it carries really
 did contribute to its eventual death. A time-gap reset was rejected because it wipes a boss fight
 during an invulnerable phase. Healing is only ever a reset trigger, never a number — a healing
 offset was tried and cannot be apportioned once time-ordering is lost.
 
-Accepted consequence: within one engagement every hit counts as dealt even if healed back, the
+Accepted residue: both `LivingDamageEvent.Pre` and `LivingHealEvent` are handled at `LOWEST`, and a
+same-priority listener registered after ours that cancels or shrinks the event leaves us having
+already recorded (or cleared). NeoForge offers no "after all LOWEST" hook, so this is documented
+rather than fixed. Within one engagement every hit counts as dealt even if healed back, the
 standard damage-meter convention. The error is bounded by healing inside a single fight. A running
 total also **cannot be windowed after the fact** — `lastContributionTick` tells you who took part
 recently, not how much of their damage was recent; time-sliced amounts would need bucketed storage
 and no consumer needs them.
+
+### `feature/breakage` — keep items broken instead of destroying them
+
+Lets consumers stop a damageable item from vanishing when its durability runs out. The item stays
+at max damage, unusable, until it is repaired. SilverLib never keeps an item on its own; a
+consumer has to ask.
+
+`mixin/ItemStackMixin` hooks `ItemStack.hurtAndBreak` at the `shrink(1)` call and posts
+`ItemBreakingEvent`. If any listener calls `keepBroken()`, the stack gets the `silver_lib:kept_broken`
+marker component, damage is pinned at max, the break sound plays, `ItemKeptBrokenEvent` is posted,
+and the destroy is skipped. A listener can only ask to keep the item, never to force a destroy, so
+"keep" always wins between consumers.
+
+`BrokenItems.isBroken(stack)` is the facade: marker present **and** damage at max. The marker is what
+stops SilverLib from hijacking items other mods deliberately leave at max damage. It is not removed
+on repair; once damage drops below max it is inert, and the next break re-posts the event.
+
+While broken: no further durability loss (cancelled at `hurtAndBreak` HEAD), attack and all
+interact/use events cancelled for non-creative players, mining speed 0, and attribute modifiers
+cleared in `ItemAttributeModifierEvent` at `LOWEST` so every other mod's bonuses are cleared too.
+The mixin lives in its own subpackage because a Mixin config package may contain only mixins.
 
 ## Project Structure
 

@@ -30,6 +30,9 @@ public final class CombatShareCheck {
         healingToFullEndsTheEngagement();
         aPartialHealDoesNotEndTheEngagement();
         aHealedThenCreeperKilledPetReadsAsACreeperKill();
+        aHealAtZeroHealthDoesNotEndTheEngagement();
+        aHitOnAWholeEntityDiscardsAStaleLog();
+        aHitOnAShieldedFullEntityKeepsTheLog();
 
         System.out.println(checksRun + " checks passed");
     }
@@ -139,9 +142,31 @@ public final class CombatShareCheck {
     private static void aHealedThenCreeperKilledPetReadsAsACreeperKill() {
         Log log = new Log();
         log.recordDirect(ALICE, 2000.0f, 0.0f, 100L);
-        log.healBy(2000.0f, 0.0f, 20.0f);
+        log.healBy(2000.0f, 1.0f, 20.0f);
         log.recordUnattributedByMob(100.0f, 200L);
         check(log.nonPlayerShare() == 1.0f, "the mirror case no longer credits the owner");
+    }
+
+    private static void aHealAtZeroHealthDoesNotEndTheEngagement() {
+        Log log = new Log();
+        log.recordDirect(ALICE, 20.0f, 0.0f, 100L);
+        log.healBy(50.0f, 0.0f, 20.0f);
+        check(log.damageDealtBy(ALICE) == 20.0f, "regeneration ticking through the death animation keeps the log");
+    }
+
+    private static void aHitOnAWholeEntityDiscardsAStaleLog() {
+        Log log = new Log();
+        log.recordDirect(ALICE, 15.0f, 0.0f, 100L);
+        log.hitWhileAt(20.0f, 20.0f, 0.0f);
+        log.recordUnattributedByMob(20.0f, 200L);
+        check(log.nonPlayerShare() == 1.0f, "a max-health shrink to full does not leave the player's damage behind");
+    }
+
+    private static void aHitOnAShieldedFullEntityKeepsTheLog() {
+        Log log = new Log();
+        log.recordDirect(ALICE, 8.0f, 0.0f, 100L);
+        log.hitWhileAt(20.0f, 20.0f, 4.0f);
+        check(log.damageDealtBy(ALICE) == 8.0f, "chewing a shield at full health is still damage dealt");
     }
 
     private static float dealtBy(float postArmourDamage, float health, float absorption) {
@@ -198,7 +223,13 @@ public final class CombatShareCheck {
         }
 
         void healBy(float amount, float currentHealth, float maxHealth) {
+            if (currentHealth <= 0.0f) return;
             if (currentHealth + amount >= maxHealth) clear();
+        }
+
+        void hitWhileAt(float currentHealth, float maxHealth, float absorption) {
+            if (currentHealth < maxHealth || absorption > 0.0f) return;
+            clear();
         }
 
         void recordUnattributedByMob(float dealt, long tick) {
