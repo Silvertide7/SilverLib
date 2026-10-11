@@ -22,9 +22,8 @@ public final class BreakageHooks {
 
     private BreakageHooks() {}
 
-    public static boolean takesNoDamage(ItemStack stack, int damage) {
-        clearMarkerIfRepaired(stack);
-        return damage > 0 && BrokenItems.isBroken(stack);
+    public static boolean blocksNonRepairingDamageToBrokenItem(ItemStack stack, int damage) {
+        return damage >= 0 && BrokenItems.isBroken(stack);
     }
 
     public static boolean keepBrokenInsteadOfDestroyingIfRequested(ItemStack stack, ServerLevel level, @Nullable LivingEntity entity) {

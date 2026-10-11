@@ -83,13 +83,16 @@ write `DataComponents.DAMAGE` directly leave it until the next `hurtAndBreak`, w
 HEAD. Stackable damageable items cannot exist (vanilla rejects them), so a kept stack is always one
 item.
 
-While broken: no further durability loss (positive damage cancelled at `hurtAndBreak` HEAD;
-negative damage still repairs); attack, item use and interact events cancelled for non-creative
+While broken: no further durability loss (zero and positive damage cancelled at `hurtAndBreak`
+HEAD, so a zero-damage hit never re-runs the break; negative damage still repairs); attack, item use and interact events cancelled for non-creative
 players; `LivingEntityUseItemEvent.Start` cancelled for any entity, and an entity still using a
-broken item stops on its next `EntityTickEvent.Pre`; attribute modifiers cleared in
+broken item stops on its next server-side `EntityTickEvent.Pre` (clients follow through the synced
+using flag; entities outside the level tick, such as machine-driven fake players, are not stopped); attribute modifiers cleared in
 `ItemAttributeModifierEvent` and every enchantment except `REPAIR_WITH_XP` ones removed in
-`GetEnchantmentLevelEvent`, both at `LOWEST` so other mods' bonuses go too (Mending stays so a
-broken item can still be repaired with experience); and dispensers eject a broken item instead of
+`GetEnchantmentLevelEvent`, both at `LOWEST` so other mods' bonuses go too. `REPAIR_WITH_XP`
+enchantments stay so Mending repairs at its full rate (experience orbs pick items from the raw
+enchantment component, so Mending items were always picked; clearing it only halved the repair).
+A modded enchantment that pairs `REPAIR_WITH_XP` with other effects keeps those effects too; and dispensers eject a broken item instead of
 using it (`mixin/DispenserBlockMixin`), so broken shears or flint and steel do nothing.
 
 The stop-using is deliberately deferred to the next tick, never done inside `hurtAndBreak`: vanilla
@@ -121,10 +124,9 @@ overwriting. The attachment is serialized (survives a disconnect on the death sc
 `copyOnDeath`, so the respawned player carries it.
 
 `PlayerRespawnEvent` empties the stash in two passes: first every stack whose slot is empty goes
-back to it, then the displaced ones go into any free slot (only attempted when there is room,
-because `Inventory.add` silently zeroes the stack for infinite-materials players), and if the
-inventory is full they drop at
-the player's feet through `ServerPlayer.drop(stack, false, false)`, which skips `ItemTossEvent` so a
+back to it, then the displaced ones go into a free slot (only attempted when a slot is completely
+free, because `Inventory.add` silently zeroes whatever doesn't fit for infinite-materials players),
+and otherwise they drop at the player's feet through `ServerPlayer.drop(stack, false, false)`, which skips `ItemTossEvent` so a
 protection mod cancelling tosses cannot delete them. Two passes stop a displaced item from taking a
 slot another stashed item owns. The stash is removed before placing, so an overflow drop cannot
 duplicate. The stash encodes and decodes entry by entry: a stack that cannot be saved is logged and

@@ -21,7 +21,9 @@ public abstract class ItemStackMixin {
 
     @Inject(method = SILVER_LIB$HURT_AND_BREAK, at = @At("HEAD"), cancellable = true)
     private void silver_lib$brokenItemsTakeNoDamage(int damage, ServerLevel level, @Nullable LivingEntity entity, Consumer<Item> onBreak, CallbackInfo ci) {
-        if (BreakageHooks.takesNoDamage((ItemStack) (Object) this, damage)) ci.cancel();
+        ItemStack stack = (ItemStack) (Object) this;
+        BreakageHooks.clearMarkerIfRepaired(stack);
+        if (BreakageHooks.blocksNonRepairingDamageToBrokenItem(stack, damage)) ci.cancel();
     }
 
     @Inject(method = SILVER_LIB$HURT_AND_BREAK, at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;shrink(I)V"), cancellable = true)

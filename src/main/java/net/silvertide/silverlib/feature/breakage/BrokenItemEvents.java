@@ -14,8 +14,8 @@ import net.neoforged.neoforge.event.ItemAttributeModifierEvent;
 import net.neoforged.neoforge.event.enchanting.GetEnchantmentLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
-import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.silvertide.silverlib.SilverLib;
 
 @EventBusSubscriber(modid = SilverLib.MOD_ID)
@@ -44,6 +44,7 @@ final class BrokenItemEvents {
 
     @SubscribeEvent
     static void onEntityTick(EntityTickEvent.Pre event) {
+        if (event.getEntity().level().isClientSide()) return;
         if (event.getEntity() instanceof LivingEntity living && living.isUsingItem() && !isCreativePlayer(living) && BrokenItems.isBroken(living.getUseItem())) {
             living.stopUsingItem();
         }

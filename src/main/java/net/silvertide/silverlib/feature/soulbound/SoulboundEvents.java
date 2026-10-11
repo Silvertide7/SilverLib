@@ -40,7 +40,7 @@ final class SoulboundEvents {
 
     private static void addToInventoryOrDropAtFeet(ServerPlayer player, ItemStack stack) {
         Inventory inventory = player.getInventory();
-        if (inventory.getFreeSlot() >= 0 || inventory.getSlotWithRemainingSpace(stack) >= 0) inventory.add(stack);
+        if (inventory.getFreeSlot() >= 0) inventory.add(stack);
         if (!stack.isEmpty()) player.drop(stack, false, false);
     }
 }
