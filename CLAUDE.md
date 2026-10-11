@@ -69,9 +69,7 @@ consumer has to ask.
 
 `mixin/ItemStackMixin` hooks `ItemStack.hurtAndBreak` at the `shrink(1)` call and hands off to
 `BreakageHooks`, which posts `ItemBreakingEvent`. If any listener calls `keepBroken()` (and no
-listener emptied the stack), the entity stops using the item (a broken shield or brush would
-otherwise keep blocking or brushing, because the skipped `onBreak` is what calls `stopUsingItem`),
-location-based enchantment effects such as Soul Speed are stopped while they are still visible, the
+listener emptied the stack), location-based enchantment effects such as Soul Speed are stopped while they are still visible, the
 stack gets the `silver_lib:kept_broken` marker, damage is pinned at max, the break sound plays,
 `ItemKeptBrokenEvent` is posted, and the destroy is skipped. `onBreak` must stay skipped: vanilla's
 callbacks post `PlayerDestroyItemEvent`, which consumers treat as "the item is gone". That is why
@@ -80,14 +78,24 @@ to keep the item, never to force a destroy, so "keep" always wins between consum
 
 `BrokenItems.isBroken(stack)` is the facade: marker present **and** damage at max. The marker stops
 SilverLib from hijacking items other mods deliberately leave at max damage. `setDamageValue`
-removes it once damage drops below max, so repaired stacks match fresh ones again.
+removes it once damage drops below max, so repaired stacks match fresh ones again; repairs that
+write `DataComponents.DAMAGE` directly leave it until the next `hurtAndBreak`, which clears it at
+HEAD. Stackable damageable items cannot exist (vanilla rejects them), so a kept stack is always one
+item.
 
-While broken: no further durability loss (cancelled at `hurtAndBreak` HEAD); attack, item use and
-interact events cancelled for non-creative players; `LivingEntityUseItemEvent.Start` cancelled for
-any entity; attribute modifiers cleared in `ItemAttributeModifierEvent` and every enchantment
-removed in `GetEnchantmentLevelEvent`, both at `LOWEST` so other mods' bonuses go too (this also
-means Mending cannot repair a broken item); and dispensers eject a broken item instead of using it
-(`mixin/DispenserBlockMixin`), so broken shears or flint and steel do nothing.
+While broken: no further durability loss (positive damage cancelled at `hurtAndBreak` HEAD;
+negative damage still repairs); attack, item use and interact events cancelled for non-creative
+players; `LivingEntityUseItemEvent.Start` cancelled for any entity, and an entity still using a
+broken item stops on its next `EntityTickEvent.Pre`; attribute modifiers cleared in
+`ItemAttributeModifierEvent` and every enchantment except `REPAIR_WITH_XP` ones removed in
+`GetEnchantmentLevelEvent`, both at `LOWEST` so other mods' bonuses go too (Mending stays so a
+broken item can still be repaired with experience); and dispensers eject a broken item instead of
+using it (`mixin/DispenserBlockMixin`), so broken shears or flint and steel do nothing.
+
+The stop-using is deliberately deferred to the next tick, never done inside `hurtAndBreak`: vanilla
+callers check `useItem.isEmpty()` right after damaging (`Player.hurtCurrentlyUsedShield` then clears
+the hand, `LivingEntity.releaseUsingItem` posts `PlayerDestroyItemEvent`), and `stopUsingItem()`
+empties `useItem`.
 
 Mixins call `@ApiStatus.Internal` hook classes (`BreakageHooks`, `SoulboundHooks`) so the marker
 component, the stash attachment and `StashedItem` can stay package-private. Mixins live in their own
@@ -113,12 +121,16 @@ overwriting. The attachment is serialized (survives a disconnect on the death sc
 `copyOnDeath`, so the respawned player carries it.
 
 `PlayerRespawnEvent` empties the stash in two passes: first every stack whose slot is empty goes
-back to it, then the displaced ones go into any free slot, and if the inventory is full they drop at
+back to it, then the displaced ones go into any free slot (only attempted when there is room,
+because `Inventory.add` silently zeroes the stack for infinite-materials players), and if the
+inventory is full they drop at
 the player's feet through `ServerPlayer.drop(stack, false, false)`, which skips `ItemTossEvent` so a
 protection mod cancelling tosses cannot delete them. Two passes stop a displaced item from taking a
 slot another stashed item owns. The stash is removed before placing, so an overflow drop cannot
-duplicate. The stash decodes entry by entry and logs and skips any stack that no longer reads (an
-item from a removed mod), so one bad entry never wipes the rest. Restoring happens at
+duplicate. The stash encodes and decodes entry by entry: a stack that cannot be saved is logged and
+skipped, a stack with a component from a removed mod loads without that component (vanilla's
+`resultOrPartial` behaviour), and only an entry that does not load at all (unknown item) is dropped,
+so one bad entry never wipes the rest. Restoring happens at
 respawn, not in `Clone`, because the new player is positioned by then and an overflow drop lands at
 their feet instead of world spawn.
 

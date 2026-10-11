@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.ListBuilder;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -28,13 +29,19 @@ record StashedItem(int inventorySlot, ItemStack stack) {
 
         @Override
         public <T> DataResult<T> encode(List<StashedItem> stash, DynamicOps<T> ops, T prefix) {
-            return CODEC.listOf().encode(stash, ops, prefix);
+            ListBuilder<T> encodedStash = ops.listBuilder();
+            for (StashedItem stashedItem : stash) {
+                DataResult<T> encoded = CODEC.encodeStart(ops, stashedItem);
+                encoded.error().ifPresent(error -> LOGGER.warn("Dropping unsavable soulbound stash entry {}: {}", stashedItem.stack(), error.message()));
+                encoded.result().ifPresent(encodedStash::add);
+            }
+            return encodedStash.build(prefix);
         }
     };
 
     private static <T> Optional<StashedItem> decodeOrSkip(DynamicOps<T> ops, T element) {
-        DataResult<StashedItem> result = CODEC.parse(ops, element);
-        result.error().ifPresent(error -> LOGGER.warn("Dropping unreadable soulbound stash entry: {}", error.message()));
-        return result.result();
+        return CODEC.parse(ops, element)
+                .resultOrPartial(error -> LOGGER.warn("Soulbound stash entry did not fully load: {}", error))
+                .filter(stashedItem -> !stashedItem.stack().isEmpty());
     }
 }

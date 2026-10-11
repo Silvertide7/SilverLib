@@ -22,13 +22,14 @@ public final class BreakageHooks {
 
     private BreakageHooks() {}
 
-    public static boolean takesNoDamage(ItemStack stack) {
-        return BrokenItems.isBroken(stack);
+    public static boolean takesNoDamage(ItemStack stack, int damage) {
+        clearMarkerIfRepaired(stack);
+        return damage > 0 && BrokenItems.isBroken(stack);
     }
 
     public static boolean keepBrokenInsteadOfDestroyingIfRequested(ItemStack stack, ServerLevel level, @Nullable LivingEntity entity) {
         if (!NeoForge.EVENT_BUS.post(new ItemBreakingEvent(stack, level, entity)).isKeptBroken() || stack.isEmpty()) return false;
-        if (entity != null) releaseFromEntity(stack, entity);
+        if (entity != null) stopLocationBasedEffects(stack, entity);
         stack.set(BreakageComponents.KEPT_BROKEN.get(), Unit.INSTANCE);
         stack.setDamageValue(stack.getMaxDamage());
         if (entity != null) playBreakSound(level, entity);
@@ -46,8 +47,7 @@ public final class BreakageHooks {
         return BrokenItems.isBroken(stack) ? EJECT_BEHAVIOR : behavior;
     }
 
-    private static void releaseFromEntity(ItemStack stack, LivingEntity entity) {
-        if (entity.getUseItem() == stack) entity.stopUsingItem();
+    private static void stopLocationBasedEffects(ItemStack stack, LivingEntity entity) {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             if (entity.getItemBySlot(slot) == stack) EnchantmentHelper.stopLocationBasedEffects(stack, entity, slot);
         }
