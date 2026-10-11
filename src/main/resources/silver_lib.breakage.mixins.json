@@ -4,6 +4,7 @@
   "package": "net.silvertide.silverlib.feature.breakage.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "DispenserBlockMixin",
     "ItemStackMixin"
   ],
   "injectors": {

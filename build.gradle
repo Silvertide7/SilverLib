@@ -1,6 +1,5 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.146'
     id 'idea'
     id "me.modmuss50.mod-publish-plugin" version "0.8.3"
@@ -25,6 +24,13 @@ sourceSets.main.resources {
     // Exclude common development only resources from finalized outputs
     exclude("**/*.bbmodel") // BlockBench project files
     exclude("src/generated/**/.cache") // datagen cache files
+}
+
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
 }
 
 repositories {
@@ -84,6 +90,7 @@ neoForge {
 
         // applies to all the run configs above
         configureEach {
+            sourceSet = sourceSets.gametest
             // Recommended logging data for a userdev environment
             // The markers can be added/remove as needed separated by commas.
             // "SCAN": For mods scan.
@@ -104,6 +111,7 @@ neoForge {
         // multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.gametest)
         }
     }
 }
@@ -112,8 +120,12 @@ neoForge {
 // This configuration should be used instead of 'runtimeOnly' to declare
 // a dependency that will be present for runtime testing but that is
 // "optional", meaning it will not be pulled by dependents of this mod.
+neoForge.addModdingDependenciesTo(sourceSets.gametest)
+
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+    gametestImplementation.extendsFrom implementation
+    gametestRuntimeClasspath.extendsFrom runtimeClasspath
 }
 
 dependencies {
@@ -147,6 +159,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
             neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
             loader_version_range   : loader_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
@@ -167,7 +180,7 @@ neoForge.ideSyncTask generateModMetadata
 publishMods {
     file = jar.archiveFile
     modLoaders.add("neoforge")
-    changelog = new File("$project.rootDir/CHANGELOG.md").getText('UTF-8')
+    changelog = new File("$project.rootDir/CHANGELOG.md").getText('UTF-8').split(/(?m)^(?=\d+\.\d+\.\d+\s*$)/).find { it.trim() }.trim()
     version = "${minecraft_version}-${mod_version}"
     type = STABLE
     displayName = "silverlib-${minecraft_version}-${mod_version}"

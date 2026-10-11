@@ -7,8 +7,9 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.ItemAttributeModifierEvent;
+import net.neoforged.neoforge.event.enchanting.GetEnchantmentLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.silvertide.silverlib.SilverLib;
 
@@ -26,9 +27,15 @@ final class BrokenItemEvents {
         if (BrokenItems.isBroken(event.getItemStack())) event.clearModifiers();
     }
 
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    static void onEnchantmentLevel(GetEnchantmentLevelEvent event) {
+        if (BrokenItems.isBroken(event.getStack())) event.getEnchantments().removeIf(enchantment -> true);
+    }
+
     @SubscribeEvent
-    static void onBreakSpeed(PlayerEvent.BreakSpeed event) {
-        if (BrokenItems.isBroken(event.getEntity().getMainHandItem())) event.setNewSpeed(0.0F);
+    static void onUseItemStart(LivingEntityUseItemEvent.Start event) {
+        boolean creativePlayer = event.getEntity() instanceof Player player && player.hasInfiniteMaterials();
+        if (!creativePlayer && BrokenItems.isBroken(event.getItem())) event.setCanceled(true);
     }
 
     @SubscribeEvent

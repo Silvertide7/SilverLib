@@ -12,12 +12,15 @@ Shared library code for Silvertide mods.
 '''
 
 [[mixins]]
-config="${mod_id}.mixins.json"
+config="${mod_id}.breakage.mixins.json"
+
+[[mixins]]
+config="${mod_id}.soulbound.mixins.json"
 
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"
-versionRange="[${neo_version},)"
+versionRange="${neo_version_range}"
 ordering="NONE"
 side="BOTH"
 

@@ -4,6 +4,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.silvertide.silverlib.feature.breakage.BreakageFeature;
 import net.silvertide.silverlib.feature.combat.CombatFeature;
+import net.silvertide.silverlib.feature.soulbound.SoulboundFeature;
 
 @Mod(SilverLib.MOD_ID)
 public class SilverLib {
@@ -12,5 +13,6 @@ public class SilverLib {
     public SilverLib(IEventBus modEventBus) {
         CombatFeature.init(modEventBus);
         BreakageFeature.init(modEventBus);
+        SoulboundFeature.init(modEventBus);
     }
 }

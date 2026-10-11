@@ -9,12 +9,12 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.silvertide.silverlib.SilverLib;
 
-public final class BreakageComponents {
+final class BreakageComponents {
 
     private static final DeferredRegister.DataComponents DATA_COMPONENTS =
             DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, SilverLib.MOD_ID);
 
-    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Unit>> KEPT_BROKEN =
+    static final DeferredHolder<DataComponentType<?>, DataComponentType<Unit>> KEPT_BROKEN =
             DATA_COMPONENTS.registerComponentType("kept_broken",
                     builder -> builder.persistent(Unit.CODEC).networkSynchronized(StreamCodec.unit(Unit.INSTANCE)));
 

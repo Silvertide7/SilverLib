@@ -67,20 +67,64 @@ Lets consumers stop a damageable item from vanishing when its durability runs ou
 at max damage, unusable, until it is repaired. SilverLib never keeps an item on its own; a
 consumer has to ask.
 
-`mixin/ItemStackMixin` hooks `ItemStack.hurtAndBreak` at the `shrink(1)` call and posts
-`ItemBreakingEvent`. If any listener calls `keepBroken()`, the stack gets the `silver_lib:kept_broken`
-marker component, damage is pinned at max, the break sound plays, `ItemKeptBrokenEvent` is posted,
-and the destroy is skipped. A listener can only ask to keep the item, never to force a destroy, so
-"keep" always wins between consumers.
+`mixin/ItemStackMixin` hooks `ItemStack.hurtAndBreak` at the `shrink(1)` call and hands off to
+`BreakageHooks`, which posts `ItemBreakingEvent`. If any listener calls `keepBroken()` (and no
+listener emptied the stack), the entity stops using the item (a broken shield or brush would
+otherwise keep blocking or brushing, because the skipped `onBreak` is what calls `stopUsingItem`),
+location-based enchantment effects such as Soul Speed are stopped while they are still visible, the
+stack gets the `silver_lib:kept_broken` marker, damage is pinned at max, the break sound plays,
+`ItemKeptBrokenEvent` is posted, and the destroy is skipped. `onBreak` must stay skipped: vanilla's
+callbacks post `PlayerDestroyItemEvent`, which consumers treat as "the item is gone". That is why
+this is a cancelling `@Inject` and not a `@WrapOperation` on `shrink` alone. A listener can only ask
+to keep the item, never to force a destroy, so "keep" always wins between consumers.
 
-`BrokenItems.isBroken(stack)` is the facade: marker present **and** damage at max. The marker is what
-stops SilverLib from hijacking items other mods deliberately leave at max damage. It is not removed
-on repair; once damage drops below max it is inert, and the next break re-posts the event.
+`BrokenItems.isBroken(stack)` is the facade: marker present **and** damage at max. The marker stops
+SilverLib from hijacking items other mods deliberately leave at max damage. `setDamageValue`
+removes it once damage drops below max, so repaired stacks match fresh ones again.
 
-While broken: no further durability loss (cancelled at `hurtAndBreak` HEAD), attack and all
-interact/use events cancelled for non-creative players, mining speed 0, and attribute modifiers
-cleared in `ItemAttributeModifierEvent` at `LOWEST` so every other mod's bonuses are cleared too.
-The mixin lives in its own subpackage because a Mixin config package may contain only mixins.
+While broken: no further durability loss (cancelled at `hurtAndBreak` HEAD); attack, item use and
+interact events cancelled for non-creative players; `LivingEntityUseItemEvent.Start` cancelled for
+any entity; attribute modifiers cleared in `ItemAttributeModifierEvent` and every enchantment
+removed in `GetEnchantmentLevelEvent`, both at `LOWEST` so other mods' bonuses go too (this also
+means Mending cannot repair a broken item); and dispensers eject a broken item instead of using it
+(`mixin/DispenserBlockMixin`), so broken shears or flint and steel do nothing.
+
+Mixins call `@ApiStatus.Internal` hook classes (`BreakageHooks`, `SoulboundHooks`) so the marker
+component, the stash attachment and `StashedItem` can stay package-private. Mixins live in their own
+subpackage because a Mixin config package may contain only mixins; each feature with mixins has its
+own `silver_lib.<feature>.mixins.json`.
+
+### `feature/soulbound` — keep items through death
+
+Consumers decide which items a player keeps on death; SilverLib moves them safely. Nothing is
+soulbound unless a consumer says so.
+
+`SoulboundItems.isSoulbound(player, stack)` is the facade. It posts `SoulboundCheckEvent`; any
+listener calling `keep()` makes the stack soulbound. It is an event, not a component, because rules
+like "attuned to *this* player" depend on who is dying.
+
+`mixin/PlayerMixin` injects at `Player.dropEquipment` HEAD. That runs only from `dropAllDeathLoot`,
+after every `LivingDeathEvent` listener has had its chance to cancel, so a revive mod cancelling the
+death never strands items, and it runs before Curse of Vanishing destroys anything. It does nothing
+with `keepInventory` on (vanilla keeps everything). Each soulbound slot is moved into the
+`soulbound_stash` player attachment as `StashedItem(inventorySlot, stack)` (combined `Inventory`
+index: 0-35 main, 36-39 armour, 40 offhand), appended to anything already stashed, never
+overwriting. The attachment is serialized (survives a disconnect on the death screen) and
+`copyOnDeath`, so the respawned player carries it.
+
+`PlayerRespawnEvent` empties the stash in two passes: first every stack whose slot is empty goes
+back to it, then the displaced ones go into any free slot, and if the inventory is full they drop at
+the player's feet through `ServerPlayer.drop(stack, false, false)`, which skips `ItemTossEvent` so a
+protection mod cancelling tosses cannot delete them. Two passes stop a displaced item from taking a
+slot another stashed item owns. The stash is removed before placing, so an overflow drop cannot
+duplicate. The stash decodes entry by entry and logs and skips any stack that no longer reads (an
+item from a removed mod), so one bad entry never wipes the rest. Restoring happens at
+respawn, not in `Clone`, because the new player is positioned by then and an overflow drop lands at
+their feet instead of world spawn.
+
+Accepted gaps: grave mods that scrape the inventory inside `LivingDeathEvent` itself still see
+soulbound items first. Curios slots are the consumer's job (SilverLib never hard-depends on Curios):
+add a `DropRulesEvent` override using `SoulboundItems.isSoulbound`.
 
 ## Project Structure
 
@@ -125,9 +169,11 @@ classes are package-private so the public read API cannot be used to corrupt sta
 ./gradlew build                # build the mod jar
 ./gradlew runClient            # smoke test
 ./check/check_combat_log.sh    # standalone damage-accounting assertions, no Minecraft classpath
+./gradlew runGameTestServer    # in-game tests (breakage, soulbound death and respawn)
 ```
 
-Standalone checks live in `check/`. They compile the pure logic against a plain `javac` and assert
+In-game tests live in the `gametest` source set (`src/gametest/`), which every dev run loads but
+the published jar does not. Standalone checks live in `check/`. They compile the pure logic against a plain `javac` and assert
 with `AssertionError`. Non-trivial maths (shares, clamping, attribution windows) should leave one
 behind; Minecraft-coupled code is verified in game.
 
